@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Food Detection and Nutritions</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div class="wrapper" aria-live="polite">
+    <div class="card">
+      <h1>Food Detection and Nutritions</h1>
+      <p class="subtitle">
+        Upload a food image for our AI to detect and analyze the nutritions of the meal that you're having.
+      </p>
+
+      {% if error %}
+        <p class="alert">{{ error }}</p>
+      {% endif %}
+
+      <form action="/detect" method="POST" enctype="multipart/form-data" id="uploadForm">
+        <div class="upload-area" id="uploadArea">
+          <input type="file" name="image" id="image" accept="image/*" required>
+          <label for="image" id="uploadLabel">
+            <span class="emoji" aria-hidden="true">📷</span>
+            Tap to browse or drop an image
+            <span>PNG, JPG up to 10MB</span>
+          </label>
+          <img id="preview-img" src="" alt="Preview" class="preview">
+        </div>
+        <button type="submit" class="btn">Detect</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const input = document.getElementById("image");
+    const preview = document.getElementById("preview-img");
+    const label = document.getElementById("uploadLabel");
+
+    const uploadArea = document.getElementById("uploadArea");
+
+    const handleFileChange = () => {
+      const file = input.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          preview.src = e.target.result;
+          preview.style.display = "block";
+          label.style.display = "none";
+        };
+        reader.readAsDataURL(file);
+        uploadArea.classList.add("has-image");
+      }
+    };
+
+    input.addEventListener("change", handleFileChange);
+
+    ["dragenter", "dragover"].forEach(eventName => {
+      uploadArea.addEventListener(eventName, event => {
+        event.preventDefault();
+        event.stopPropagation();
+        uploadArea.classList.add("dragover");
+      });
+    });
+
+    ["dragleave", "drop"].forEach(eventName => {
+      uploadArea.addEventListener(eventName, event => {
+        event.preventDefault();
+        event.stopPropagation();
+        uploadArea.classList.remove("dragover");
+      });
+    });
+
+    uploadArea.addEventListener("drop", event => {
+      const { files } = event.dataTransfer;
+      if (files && files.length) {
+        input.files = files;
+        handleFileChange();
+      }
+    });
+  </script>
+</body>
+</html>
