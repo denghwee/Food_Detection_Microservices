@@ -54,8 +54,6 @@ def register_routes(app):
                 'detected_class': f.get('class', 'unknown'),
                 'confidence': float(f.get('confidence', 0)),
                 'bbox': f.get('bbox', []),
-                'disease_prediction': None,
-                'requires_classification': False
             }
             for f in foods
             if float(f.get('confidence', 0)) >= threshold
@@ -66,7 +64,6 @@ def register_routes(app):
                 'status': 'success',
                 'annotated_image_base64': image_to_base64(image),
                 'detection': [],
-                'health_issue_info': None,
                 'nutrition_analysis': {
                     'individual_items': [],
                     'total_nutrition': {
@@ -99,8 +96,6 @@ def register_routes(app):
                 'detected_class': r['detected_class'],
                 'disease': None,
                 'detection_confidence': r['confidence'],
-                'classification_confidence': None,
-                'requires_classification': False
             }
             for r in results
         ]
@@ -112,7 +107,6 @@ def register_routes(app):
             'status': 'success',
             'annotated_image_base64': encoded_img,
             'detection': results,
-            'health_issue_info': None,
             'nutrition_analysis': nutrition_analysis,
             'metadata': {
                 'timestamp': datetime.datetime.now().isoformat(),
