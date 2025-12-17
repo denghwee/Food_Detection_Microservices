@@ -9,46 +9,58 @@ from PIL import Image
 from ..config import Config
 from ..services import FoodDetectionService
 from ..utils import apply_nms, deduplicate_by_label, draw_boxes, image_to_base64, calculate_total_nutrition
-
+from ..utils.cloudinary_helper import upload_image_to_cloudinary
 
 def register_routes(app):
 
     @app.route('/')
     def home():
         return render_template('index.html')
-    
+
     @app.route('/detect', methods=['GET', 'POST'])
     def detect():
-        """food-detection pipeline.
-
-        Returns all food items above configured threshold.
         """
+        Food detection + nutrition analysis
+        Upload annotated image to Cloudinary and return image URL
+        """
+
+        # -------------------------
+        # Health check
+        # -------------------------
         if request.method == 'GET':
             return jsonify({'status': 'ready'}), 200
 
+        # -------------------------
+        # Get image
+        # -------------------------
         file = request.files.get('image')
         if not file:
             return jsonify({'error': 'No image uploaded.'}), 400
 
-        image = Image.open(io.BytesIO(file.read())).convert('RGB')
+        try:
+            image = Image.open(io.BytesIO(file.read())).convert('RGB')
+        except Exception:
+            return jsonify({'error': 'Invalid image file.'}), 400
 
+        # -------------------------
+        # Detect food
+        # -------------------------
         try:
             service = FoodDetectionService()
             foods = service.detect(image)
         except Exception as error:
             return jsonify({'error': str(error)}), 502
 
-        # Normalize structure: expect list of {'class': name, 'confidence': float, 'bbox': [...]}
         foods = foods or []
-        
-        # Apply NMS to remove duplicate detections (same food + overlapping boxes)
+
+        # -------------------------
+        # Post-processing
+        # -------------------------
         foods = apply_nms(foods, iou_threshold=0.5)
-        
-        # Final deduplication: keep only highest confidence per unique label
         foods = deduplicate_by_label(foods)
 
-        # Filter by configured threshold and create results
         threshold = getattr(Config, 'FOOD_CONFIDENCE_THRESHOLD', Config.CONFIDENCE)
+
         results = [
             {
                 'detected_class': f.get('class', 'unknown'),
@@ -59,10 +71,20 @@ def register_routes(app):
             if float(f.get('confidence', 0)) >= threshold
         ]
 
+        timestamp = datetime.datetime.now().isoformat()
+
+        # -------------------------
+        # No detection case
+        # -------------------------
         if not results:
+            image_url = upload_image_to_cloudinary(
+                image,
+                folder="food-detection/original"
+            )
+
             return jsonify({
                 'status': 'success',
-                'annotated_image_base64': image_to_base64(image),
+                'image_url': image_url,
                 'detection': [],
                 'nutrition_analysis': {
                     'individual_items': [],
@@ -76,40 +98,50 @@ def register_routes(app):
                     'items_count': 0
                 },
                 'metadata': {
-                    'timestamp': datetime.datetime.now().isoformat(),
+                    'timestamp': timestamp,
                     'total_detections': 0,
                     'image_size': {
                         'width': image.width,
                         'height': image.height
                     },
-                    'detection_summary': []
+                    'threshold': threshold
                 }
-            })
+            }), 200
 
-        # Annotated image with boxes
+        # -------------------------
+        # Draw boxes & upload
+        # -------------------------
         image_with_boxes = draw_boxes(image.copy(), foods)
-        encoded_img = image_to_base64(image_with_boxes)
 
-        # Create detection summary
+        image_url = upload_image_to_cloudinary(
+            image_with_boxes,
+            folder="food-detection/annotated"
+        )
+
+        # -------------------------
+        # Nutrition analysis
+        # -------------------------
+        nutrition_analysis = calculate_total_nutrition(results)
+
         detection_summary = [
             {
                 'detected_class': r['detected_class'],
                 'disease': None,
-                'detection_confidence': r['confidence'],
+                'detection_confidence': r['confidence']
             }
             for r in results
         ]
-        
-        # Calculate nutrition analysis
-        nutrition_analysis = calculate_total_nutrition(results)
 
+        # -------------------------
+        # Response
+        # -------------------------
         return jsonify({
             'status': 'success',
-            'annotated_image_base64': encoded_img,
+            'image_url': image_url,
             'detection': results,
             'nutrition_analysis': nutrition_analysis,
             'metadata': {
-                'timestamp': datetime.datetime.now().isoformat(),
+                'timestamp': timestamp,
                 'total_detections': len(results),
                 'image_size': {
                     'width': image.width,
@@ -118,4 +150,4 @@ def register_routes(app):
                 'detection_summary': detection_summary,
                 'threshold': threshold
             }
-        })
+        }), 200
