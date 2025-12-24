@@ -1,24 +1,30 @@
-# Python base image
-FROM python:3.10-slim
+FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Cài dependency hệ thống (nếu có opencv, torch, etc.)
+# ===== System dependencies =====
 RUN apt-get update && apt-get install -y \
     build-essential \
+    libglib2.0-0 \
+    libsm6 \
+    libxrender1 \
+    libxext6 \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements trước để cache
+# ===== Python deps =====
 COPY requirements.txt .
-
+RUN python -m pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy toàn bộ source code
+# ===== App source =====
 COPY . .
 
-# Expose port (Render dùng PORT env)
-EXPOSE 5000
+# ===== Local config =====
+ENV FLASK_ENV=development
+ENV PYTHONUNBUFFERED=1
+ENV SERVICE_PORT=5002
 
-# Render sẽ set PORT, nên ta dùng gunicorn
-CMD gunicorn run:app --bind 0.0.0.0:${PORT:-5000}
+EXPOSE 5002
+
+CMD ["sh", "-c", "python run.py"]

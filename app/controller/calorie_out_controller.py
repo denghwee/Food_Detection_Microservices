@@ -4,7 +4,7 @@ from flask_jwt_extended import jwt_required
 from app.services.calorie_out_service import CalorieOutService
 from app.utils.jwt_utils import get_current_user_email
 
-calorie_out_bp = Blueprint("calorie_out", __name__, url_prefix="/calories-out")
+calorie_out_bp = Blueprint("calorie_out", __name__, url_prefix="/api/v2/calories-out")
 
 
 @calorie_out_bp.route("/activities", methods=["POST"])

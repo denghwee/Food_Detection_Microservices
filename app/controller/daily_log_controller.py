@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services.daily_log_service import DailyLogService
 
-daily_log_bp = Blueprint("daily_log_bp", __name__)
+daily_log_bp = Blueprint("daily_log_bp", __name__, url_prefix="/api/v2")
 
 @daily_log_bp.route("/daily-logs", methods=["GET"])
 @jwt_required()

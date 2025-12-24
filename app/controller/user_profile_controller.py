@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required
 from app.services.user_profile_service import UserProfileService
 from app.utils.jwt_utils import get_current_user_email
 
-user_profile_bp = Blueprint("user_profile", __name__, url_prefix="/user-profile")
+user_profile_bp = Blueprint("user_profile", __name__, url_prefix="/api/v2/user-profile")
 
 
 @user_profile_bp.route("", methods=["GET"])
