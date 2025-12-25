@@ -7,14 +7,14 @@ class DailyEnergyLog(db.Model):
     id = db.Column(db.BigInteger, primary_key=True)
     user_email = db.Column(db.String(255), nullable=False, index=True)
     log_date = db.Column(db.Date, nullable=False)
-
+    total_steps = db.Column(db.Integer, default=0)
     total_calorie_in = db.Column(db.Integer, default=0)
     base_calorie_out = db.Column(db.Integer, default=0)
-    tdee = db.Column(db.Integer, default=0)  # NEW
-    target_calorie = db.Column(db.Integer, default=0)  # NEW
+    tdee = db.Column(db.Integer, default=0)
+    target_calorie = db.Column(db.Integer, default=0)
     activity_calorie_out = db.Column(db.Integer, default=0)
     net_calorie = db.Column(db.Integer, default=0)
-
+    steps_calorie_out = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

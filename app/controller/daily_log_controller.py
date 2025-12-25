@@ -30,3 +30,29 @@ def get_summary():
         return jsonify({"error": error}), 400
 
     return jsonify({"status": "success", "period": period, "summary": summary}), 200
+@daily_log_bp.route("/daily-logs/steps", methods=["POST"])
+@jwt_required()
+def update_daily_steps():
+    user_email = get_jwt_identity()
+    data = request.get_json()
+
+    steps = data.get("steps")
+    log_date = data.get("log_date")  # optional
+
+    if steps is None or steps < 0:
+        return jsonify({"error": "steps is required and must be >= 0"}), 400
+
+    result, error = DailyLogService.update_daily_steps(
+        user_email=user_email,
+        steps=steps,
+        log_date=log_date
+    )
+
+    if error:
+        return jsonify({"error": error}), 400
+
+    return jsonify({
+        "status": "success",
+        "steps": steps,
+        "log_date": result["log_date"]
+    }), 200

@@ -10,3 +10,4 @@ class GoalTypeEnum(str, Enum):
     lose_weight = "lose_weight"
     maintain = "maintain"
     gain_weight = "gain_weight"
+

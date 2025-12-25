@@ -50,4 +50,15 @@ def weight_history():
     if not user_email:
         return jsonify({"error": "Unauthorized"}), 401
 
-    return UserProfileService.get_weight_history(user_email)
+    return UserProfileService.get_weight_history(user_email)\
+
+@user_profile_bp.route("/ai/profile-input", methods=["GET"])
+@jwt_required()
+def get_ai_profile_input():
+    user_email = get_current_user_email()
+
+    data, error = UserProfileService.build_ai_input(user_email)
+    if error:
+        return jsonify({"error": error}), 400
+
+    return jsonify(data), 200

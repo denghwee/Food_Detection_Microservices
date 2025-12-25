@@ -1,11 +1,17 @@
 from datetime import date, datetime
 from flask import jsonify
 from app import db
-from app.models import UserProfile
-from app.external.auth_service import fetch_user_basic_info
+from app.models import UserProfile, DailyEnergyLog
+from app.external.auth_service import fetch_user_profile
 from app.models.user_profile_weight_history import UserProfileWeightHistory
+from app.mappers.ai_profile_mapper import (
+    ACTIVITY_TO_EXPERIENCE,
+    ACTIVITY_TO_DAYS,
+    ACTIVITY_TO_SESSION_DURATION,
+    GOAL_MAPPING
+)
 
-
+from app.enums.app_enum import ActivityLevelEnum, GoalTypeEnum
 class UserProfileService:
 
     @staticmethod
@@ -40,40 +46,33 @@ class UserProfileService:
 
     @staticmethod
     def create_user_profile(user_email: str, payload: dict, jwt_token: str):
-        # Nếu profile đã tồn tại
+        # Kiểm tra profile local
         existing_profile = UserProfile.query.filter_by(user_email=user_email).first()
         if existing_profile:
             return jsonify({"error": "Profile already exists"}), 400
 
-        # 🔹 GỌI SPRING AUTH SERVICE
+        # Gọi Spring Auth Service, chỉ cần JWT
         try:
-            user_info = fetch_user_basic_info(jwt_token, user_email)
+            user_info = fetch_user_profile(jwt_token)
         except Exception as e:
             return jsonify({"error": str(e)}), 502
 
-        # 1️⃣ Tạo UserProfile chính (không chứa height/weight)
+        # Tạo UserProfile chính
         profile = UserProfile(
             user_email=user_email,
             gender=user_info.get("gender"),
-            date_of_birth=date.fromisoformat(user_info["dateOfBirth"]) if user_info.get("dateOfBirth") else None,
+            date_of_birth=date.fromisoformat(user_info.get("dateOfBirth")) if user_info.get("dateOfBirth") else None,
             activity_level=payload.get("activity_level", "sedentary"),
             goal_type=payload.get("goal_type", "maintain")
         )
         db.session.add(profile)
-        db.session.flush()  # Để lấy profile.id trước khi commit
+        db.session.flush()
 
-        # 2️⃣ Tạo UserProfileWeightHistory nếu có height/weight trong payload
-        from app.models.user_profile_weight_history import UserProfileWeightHistory
-
+        # Tạo weight history nếu có
         height_cm = payload.get("height_cm")
         weight_kg = payload.get("weight_kg")
         if height_cm is not None or weight_kg is not None:
-            # Tính BMI
-            bmi = None
-            if height_cm and weight_kg:
-                height_m = height_cm / 100
-                bmi = round(weight_kg / (height_m ** 2), 2)
-
+            bmi = round(weight_kg / ((height_cm / 100) ** 2), 2) if height_cm and weight_kg else None
             weight_history = UserProfileWeightHistory(
                 user_profile_id=profile.id,
                 height_cm=height_cm,
@@ -184,4 +183,73 @@ class UserProfileService:
             "user_email": profile.user_email,
             "weight_history": data
         }), 200
+
+    @staticmethod
+    def build_ai_input(user_email: str):
+        # 1️⃣ User profile
+        profile = UserProfile.query.filter_by(user_email=user_email).first()
+        if not profile:
+            return None, "User profile not found"
+
+        if not profile.date_of_birth:
+            return None, "Date of birth not set"
+
+        # Age
+        today = date.today()
+        age = today.year - profile.date_of_birth.year - (
+                (today.month, today.day) <
+                (profile.date_of_birth.month, profile.date_of_birth.day)
+        )
+
+        # 2️⃣ Latest weight & height
+        wh = (
+            UserProfileWeightHistory.query
+            .filter_by(user_profile_id=profile.id)
+            .order_by(UserProfileWeightHistory.created_at.desc())
+            .first()
+        )
+
+        if not wh:
+            return None, "Weight/height history not found"
+
+        # 3️⃣ Latest calorie target
+        log = (
+            DailyEnergyLog.query
+            .filter_by(user_email=user_email)
+            .order_by(DailyEnergyLog.log_date.desc())
+            .first()
+        )
+
+        calorie_target = log.target_calorie if log else 0
+
+        # 4️⃣ Mapping
+        experience_level = ACTIVITY_TO_EXPERIENCE.get(
+            profile.activity_level, "beginner"
+        )
+
+        goal = GOAL_MAPPING.get(
+            profile.goal_type, "maintenance"
+        )
+
+        available_days = ACTIVITY_TO_DAYS.get(
+            profile.activity_level, 4
+        )
+
+        session_duration = ACTIVITY_TO_SESSION_DURATION.get(
+            profile.activity_level, 60
+        )
+
+        # 5️⃣ Final payload
+        return {
+            "age": age,
+            "gender": profile.gender,
+            "height_cm": int(wh.height_cm),
+            "weight_kg": float(wh.weight_kg),
+            "experience_level": experience_level,
+            "goal": goal,
+            "available_days_per_week": available_days,
+            "session_duration_minutes": session_duration,
+            "injuries": [],
+            "calorie_target": calorie_target
+        }, None
 
