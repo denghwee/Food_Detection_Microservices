@@ -5,6 +5,7 @@ import datetime
 import io
 import numpy as np
 from PIL import Image
+from flask_jwt_extended import jwt_required
 
 from ..config import Config
 from ..services import FoodDetectionService
@@ -17,7 +18,8 @@ def register_routes(app):
     def home():
         return render_template('index.html')
 
-    @app.route('/detect', methods=['GET', 'POST'])
+    @app.route('/api/v2/detect', methods=['GET', 'POST'])
+    @jwt_required()
     def detect():
         """
         Food detection + nutrition analysis

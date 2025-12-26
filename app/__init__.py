@@ -12,7 +12,7 @@ def create_app(config_object=Config):
     db.init_app(app)
     jwt.init_app(app)
     migrate.init_app(app, db)
-
+    Config.init_cloudinary()
     register_routes(app)
 
     with app.app_context():
