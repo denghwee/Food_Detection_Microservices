@@ -1,17 +1,13 @@
 from datetime import date, datetime
 from flask import jsonify
 from app.extensions import db
+from app.mappers.ai_profile_mapper import ACTIVITY_TO_EXPERIENCE, ACTIVITY_TO_SESSION_DURATION, GOAL_MAPPING
 
 from app.models import UserProfile, DailyEnergyLog
 from app.models.user_profile_weight_history import UserProfileWeightHistory
 from app.external.auth_service import fetch_user_profile
 
-from app.mappers.ai_profile_mapper import (
-    ACTIVITY_TO_EXPERIENCE,
-    ACTIVITY_TO_DAYS,
-    ACTIVITY_TO_SESSION_DURATION,
-    GOAL_MAPPING
-)
+
 def build_user_profile_response(profile: UserProfile):
     latest_weight = (
         UserProfileWeightHistory.query
@@ -288,6 +284,12 @@ class UserProfileService:
             .order_by(DailyEnergyLog.log_date.desc())
             .first()
         )
+        if profile.aim_weight - wh.weight_kg > 0:
+            goal = "gain weight"
+        elif profile.aim_weight - wh.weight_kg == 0:
+            goal = "maintenance"
+        else:
+            goal = "lose weight"
 
         calorie_target = log.target_calorie if log else 0
 
@@ -297,8 +299,8 @@ class UserProfileService:
             "height_cm": int(wh.height_cm),
             "weight_kg": float(wh.weight_kg),
             "experience_level": ACTIVITY_TO_EXPERIENCE.get(profile.activity_level, "beginner"),
-            "goal": GOAL_MAPPING.get(profile.goal_type, "maintenance"),
-            "available_days_per_week": ACTIVITY_TO_DAYS.get(profile.activity_level, 4),
+            "goal": goal,
+            "available_days_per_week": profile.day_of_activities,
             "session_duration_minutes": ACTIVITY_TO_SESSION_DURATION.get(profile.activity_level, 60),
             "injuries": [],
             "calorie_target": calorie_target
