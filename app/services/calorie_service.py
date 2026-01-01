@@ -1,145 +1,167 @@
-# app/services/calorie_service.py
 from datetime import date
 from flask import jsonify
-from app import db
+from sqlalchemy import func
+
+from app.extensions import db
 from app.models.daily_energy_log import DailyEnergyLog
 from app.models.food_record import FoodRecord
-from app.utils import calculate_tdee
+from app.services.daily_log_service import (
+    get_latest_user_metrics,
+    calculate_bmr_from_metrics,
+    calculate_tdee,
+)
+
 
 class CalorieService:
 
+    # =========================
+    # ADD FOOD
+    # =========================
     @staticmethod
-    def add_food_records(user_email: str, payload: dict):
-        log_date = date.fromisoformat(payload.get("log_date")) if payload.get("log_date") else date.today()
+    def add_food_records(user_id: int, payload: dict):
+        log_date = (
+            date.fromisoformat(payload.get("log_date"))
+            if payload.get("log_date") else date.today()
+        )
+
         foods = payload.get("foods", [])
         if not foods:
             return jsonify({"error": "No food provided"}), 400
 
-        daily_log = DailyEnergyLog.query.filter_by(user_email=user_email, log_date=log_date).first()
+        daily_log = DailyEnergyLog.query.filter_by(
+            user_id=user_id,
+            log_date=log_date
+        ).first()
+
         if not daily_log:
-            daily_log = DailyEnergyLog(user_email=user_email, log_date=log_date)
+            daily_log = DailyEnergyLog(
+                user_id=user_id,
+                log_date=log_date,
+                total_calorie_in=0,
+                steps_calorie_out=0
+            )
             db.session.add(daily_log)
             db.session.flush()
 
-        total_calorie = 0
+        total_calorie_added = 0
         records = []
+
         for food in foods:
             calorie = int(food["calorie"])
             quantity = food.get("quantity", 1)
-            record = FoodRecord(
+
+            records.append(FoodRecord(
                 daily_log_id=daily_log.id,
                 food_name=food["food_name"],
                 calorie=calorie,
                 quantity=quantity,
                 input_method=food.get("input_method", "manual")
-            )
-            total_calorie += calorie * quantity
-            records.append(record)
+            ))
+
+            total_calorie_added += calorie * quantity
 
         db.session.add_all(records)
 
-        # --- Cập nhật BMR / TDEE / target_calorie ---
-        bmr, tdee, target_calorie = calculate_tdee(user_email)
-        daily_log.base_calorie_out = bmr
-        daily_log.tdee = tdee
-        daily_log.target_calorie = target_calorie
+        daily_log.total_calorie_in += total_calorie_added
 
-        daily_log.total_calorie_in += total_calorie
-        daily_log.net_calorie = daily_log.total_calorie_in - daily_log.target_calorie - daily_log.activity_calorie_out
 
         db.session.commit()
 
         return jsonify({
             "status": "success",
             "action": "add",
-            "log_date": str(log_date),
+            "log_date": log_date.isoformat(),
             "items_added": len(records),
-            "total_calorie_added": total_calorie,
-            "base_calorie_out": bmr,
-            "tdee": tdee,
-            "target_calorie": target_calorie,
-            "net_calorie": daily_log.net_calorie
+            "total_calorie_added": total_calorie_added,
+            "total_calorie_in_by_day": daily_log.total_calorie_in
         }), 201
 
     @staticmethod
-    def update_food_records(user_email: str, payload: dict):
-        log_date = date.fromisoformat(payload.get("log_date")) if payload.get("log_date") else date.today()
-        foods = payload.get("foods", [])
-        if foods is None:
-            return jsonify({"error": "Invalid foods list"}), 400
+    def update_food_record(user_id: int, payload: dict):
+        try:
+            record_id = payload.get("id")
+            if not record_id:
+                return {"error": "Food record id is required"}, 400
 
-        daily_log = DailyEnergyLog.query.filter_by(user_email=user_email, log_date=log_date).first()
-        if not daily_log:
-            return jsonify({"error": "Daily log not found"}), 404
+            # 1. Lấy food record theo ID
+            record = FoodRecord.query.filter_by(id=record_id).first()
+            if not record:
+                return {"error": "Food record not found"}, 404
 
-        # Xóa foods cũ
-        FoodRecord.query.filter_by(daily_log_id=daily_log.id).delete()
-        daily_log.total_calorie_in = 0
+            # 2. Kiểm tra ownership (rất quan trọng)
+            daily_log = DailyEnergyLog.query.filter_by(
+                id=record.daily_log_id,
+                user_id=user_id
+            ).first()
 
-        total_calorie = 0
-        records = []
-        for food in foods:
-            calorie = int(food["calorie"])
-            quantity = food.get("quantity", 1)
-            record = FoodRecord(
-                daily_log_id=daily_log.id,
-                food_name=food["food_name"],
-                calorie=calorie,
-                quantity=quantity,
-                input_method=food.get("input_method", "manual")
+            if not daily_log:
+                return {"error": "Unauthorized"}, 403
+
+            # 3. Update CHỈ record này
+            if "food_name" in payload:
+                record.food_name = payload["food_name"]
+
+            if "quantity" in payload:
+                record.quantity = payload["quantity"]
+
+            if "calorie" in payload:
+                record.calorie = payload["calorie"]
+            # 4. Tính lại tổng calo ăn vào
+            total_calorie = (
+                    db.session.query(func.sum(FoodRecord.calorie))
+                    .filter_by(daily_log_id=daily_log.id)
+                    .scalar()
+                    or 0
             )
-            total_calorie += calorie * quantity
-            records.append(record)
 
-        db.session.add_all(records)
+            daily_log.total_calorie_in = total_calorie
+            db.session.commit()
 
-        bmr, tdee, target_calorie = calculate_tdee(user_email)
-        daily_log.base_calorie_out = bmr
-        daily_log.tdee = tdee
-        daily_log.target_calorie = target_calorie
+            return {
+                "id": record.id,
+                "food_name": record.food_name,
+                "quantity": record.quantity,
+                "calorie": record.calorie,
+                "updated_at": record.updated_at.isoformat()
+            }, 200
 
-        daily_log.total_calorie_in = total_calorie
-        daily_log.net_calorie = daily_log.total_calorie_in - daily_log.target_calorie - daily_log.activity_calorie_out
+        except Exception as e:
+            db.session.rollback()
+            return {"error": str(e)}, 500
 
-        db.session.commit()
-
-        return jsonify({
-            "status": "success",
-            "action": "update",
-            "log_date": str(log_date),
-            "items_saved": len(records),
-            "total_calorie": total_calorie,
-            "base_calorie_out": bmr,
-            "tdee": tdee,
-            "target_calorie": target_calorie,
-            "net_calorie": daily_log.net_calorie
-        }), 200
-
+    # =========================
+    # GET FOOD
+    # =========================
     @staticmethod
-    def get_food_records(user_email: str, log_date: str | None):
+    def get_food_records(user_id: int, log_date: str | None):
         log_date = date.fromisoformat(log_date) if log_date else date.today()
-        daily_log = DailyEnergyLog.query.filter_by(user_email=user_email, log_date=log_date).first()
+
+        daily_log = DailyEnergyLog.query.filter_by(
+            user_id=user_id,
+            log_date=log_date
+        ).first()
 
         if not daily_log:
             return jsonify({
                 "status": "success",
-                "log_date": str(log_date),
-                "summary": {"total_calorie_in": 0, "base_calorie_out": 0, "tdee":0, "target_calorie":0, "activity_calorie_out": 0, "net_calorie": 0},
+                "log_date": log_date.isoformat(),
+                "summary": {
+                    "total_calorie_in": 0,
+                    "target_calorie": 0,
+                },
                 "foods": []
             }), 200
 
-        foods = FoodRecord.query.filter_by(daily_log_id=daily_log.id).all()
+        foods = FoodRecord.query.filter_by(
+            daily_log_id=daily_log.id
+        ).all()
 
         return jsonify({
             "status": "success",
-            "log_date": str(log_date),
+            "log_date": log_date.isoformat(),
             "summary": {
                 "total_calorie_in": daily_log.total_calorie_in,
-                "base_calorie_out": daily_log.base_calorie_out,
-                "tdee": daily_log.tdee,
                 "target_calorie": daily_log.target_calorie,
-                "activity_calorie_out": daily_log.activity_calorie_out,
-                "net_calorie": daily_log.net_calorie
             },
             "foods": [
                 {
@@ -149,6 +171,51 @@ class CalorieService:
                     "quantity": f.quantity,
                     "input_method": f.input_method,
                     "created_at": f.created_at.isoformat()
-                } for f in foods
+                }
+                for f in foods
             ]
         }), 200
+    @staticmethod
+    def delete_food_record(user_id: int, record_id: int):
+        try:
+            # 1. Lấy food record
+            record = FoodRecord.query.filter_by(id=record_id).first()
+            if not record:
+                return {"error": "Food record not found"}, 404
+
+            # 2. Lấy daily log + check ownership
+            daily_log = DailyEnergyLog.query.filter_by(
+                id=record.daily_log_id,
+                user_id=user_id
+            ).first()
+
+            if not daily_log:
+                return {"error": "Unauthorized"}, 403
+
+            # 3. Xoá record
+            db.session.delete(record)
+            db.session.flush()  # để record bị xoá khỏi session
+
+            # 4. Tính lại tổng calo ăn vào
+            total_calorie = (
+                db.session.query(func.sum(FoodRecord.calorie))
+                .filter_by(daily_log_id=daily_log.id)
+                .scalar()
+                or 0
+            )
+
+            daily_log.total_calorie_in = total_calorie
+
+
+
+            db.session.commit()
+
+            return {
+                "message": "Food record deleted successfully",
+                "daily_log_id": daily_log.id,
+                "total_calorie_in": daily_log.total_calorie_in,
+            }, 200
+
+        except Exception as e:
+            db.session.rollback()
+            return {"error": str(e)}, 500

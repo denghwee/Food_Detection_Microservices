@@ -5,7 +5,7 @@ class ActivityLevelEnum(str, Enum):
     lightly_active = "lightly_active"
     moderately_active = "moderately_active"
     very_active = "very_active"
-
+    extremely_active = "extremely_active"
 class GoalTypeEnum(str, Enum):
     lose_weight = "lose_weight"
     maintain = "maintain"

@@ -2,8 +2,8 @@ from flask import Flask
 from apscheduler.schedulers.background import BackgroundScheduler
 from .config import Config
 from .routes import register_routes
-from .extensions import db, jwt, migrate
-
+from .extensions import db, jwt, migrate, scheduler
+from .jobs.daily_log_job import daily_log_job
 
 def create_app(config_object=Config):
     app = Flask(__name__)
@@ -20,30 +20,44 @@ def create_app(config_object=Config):
             user_profile,
             daily_energy_log,
             food_record,
-            activity,
             user_profile_weight_history
         )
         db.create_all()
 
-    from app.controller.calorie_controller import calorie_bp
+    from app.controllers.calorie_controller import calorie_bp
     app.register_blueprint(calorie_bp)
+    from app.controllers.food_detection_controller import food_detection_bp
+    app.register_blueprint(food_detection_bp)
 
-    from app.controller.calorie_out_controller import calorie_out_bp
-    app.register_blueprint(calorie_out_bp)
+    app.config["SCHEDULER_API_ENABLED"] = True
 
-    from app.controller.user_profile_controller import user_profile_bp
-    app.register_blueprint(user_profile_bp)
+    scheduler.init_app(app)
+    scheduler.start()
 
-    from app.services.daily_log_service import create_daily_logs_for_all_users
-    from app.controller.daily_log_controller import daily_log_bp
-    app.register_blueprint(daily_log_bp)
-    scheduler = BackgroundScheduler()
+    # chạy mỗi ngày lúc 00:00
     scheduler.add_job(
-        func=create_daily_logs_for_all_users,
+        id="daily_log_job",
+        func=daily_log_job,
+        args = [app],
         trigger="cron",
         hour=0,
         minute=0
     )
-    scheduler.start()
+    #  chạy mỗi ngày lúc 00:00
+    # scheduler.add_job(
+    #     id="daily_log_job",
+    #     args=[app],
+    #     func=daily_log_job,
+    #     trigger="interval",
+    #     minutes=1
+    # )
+
+    from app.controllers.user_profile_controller import user_profile_bp
+    app.register_blueprint(user_profile_bp)
+
+    from app.services.daily_log_service import create_daily_logs_for_all_users
+    from app.controllers.daily_log_controller import daily_log_bp
+    app.register_blueprint(daily_log_bp)
+
 
     return app
