@@ -72,6 +72,8 @@ def calculate_bmr(user_id: int) -> int:
     height_cm, weight_kg, gender, dob = get_latest_user_metrics(user_id)
     return calculate_bmr_from_metrics(height_cm, weight_kg, gender, dob)
 
+from datetime import date, datetime
+
 def calculate_tdee(user_id: int):
     """
     Tính BMR, TDEE và target calories
@@ -82,7 +84,7 @@ def calculate_tdee(user_id: int):
 
     height_cm, weight_kg, gender, dob = get_latest_user_metrics(user_id)
     if not height_cm or not weight_kg:
-        return None   # ⬅️ RẤT QUAN TRỌNG
+        return None
 
     bmr = calculate_bmr_from_metrics(height_cm, weight_kg, gender, dob)
     activity_factor = ACTIVITY_FACTOR.get(profile.activity_level, 1.2)
@@ -90,18 +92,34 @@ def calculate_tdee(user_id: int):
     target_calorie = tdee
 
     # --- Goal handling ---
-    if profile.aim_weight and profile.day_of_activities and profile.day_of_activities > 0:
+    if (
+        profile.aim_weight
+        and profile.day_of_activities
+        and profile.day_of_activities > 0
+        and profile.aim_day
+        and profile.aim_day_end
+    ):
         CALORIES_PER_KG = 7700
         MAX_DEFICIT = -1000
         MAX_SURPLUS = 500
 
-        weight_diff = profile.aim_weight - weight_kg
-        total_calories_needed = weight_diff * CALORIES_PER_KG
-        total_days = (profile.aim_day_end - profile.aim_day).days
+        # 🔒 Chuẩn hóa kiểu date
+        aim_day = profile.aim_day
+        aim_day_end = profile.aim_day_end
+
+        if isinstance(aim_day, datetime):
+            aim_day = aim_day.date()
+
+        if isinstance(aim_day_end, datetime):
+            aim_day_end = aim_day_end.date()
+
+        total_days = (aim_day_end - aim_day).days
 
         if total_days <= 0:
             daily_calorie_change = 0
         else:
+            weight_diff = profile.aim_weight - weight_kg
+            total_calories_needed = weight_diff * CALORIES_PER_KG
             daily_calorie_change = total_calories_needed / total_days
 
         daily_calorie_change = max(
@@ -120,6 +138,7 @@ def calculate_tdee(user_id: int):
             target_calorie = max(target_calorie, 1500)
 
     return int(bmr), int(tdee), int(target_calorie)
+
 
 def create_daily_logs_for_all_users(target_date=None):
     """

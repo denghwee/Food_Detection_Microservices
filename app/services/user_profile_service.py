@@ -6,7 +6,45 @@ from app.mappers.ai_profile_mapper import ACTIVITY_TO_EXPERIENCE, ACTIVITY_TO_SE
 from app.models import UserProfile, DailyEnergyLog
 from app.models.user_profile_weight_history import UserProfileWeightHistory
 from app.external.auth_service import fetch_user_profile
+from app.services.daily_log_service import calculate_tdee
 
+
+def upsert_today_daily_log(user_id: int):
+    """
+    Tạo hoặc cập nhật DailyEnergyLog của hôm nay cho user
+    """
+    log_date = date.today()
+
+    result = calculate_tdee(user_id)
+    if not result:
+        return False
+
+    bmr, tdee, target_calorie = result
+
+    daily_log = DailyEnergyLog.query.filter_by(
+        user_id=user_id,
+        log_date=log_date
+    ).first()
+
+    if daily_log:
+        # UPDATE
+        daily_log.tdee = tdee
+        daily_log.target_calorie = target_calorie
+        daily_log.updated_at = datetime.utcnow()
+    else:
+        # CREATE
+        daily_log = DailyEnergyLog(
+            user_id=user_id,
+            log_date=log_date,
+            tdee=tdee,
+            target_calorie=target_calorie,
+            total_calorie_in=0,
+            total_steps=0,
+            steps_calorie_out=0
+        )
+        db.session.add(daily_log)
+
+    return True
 
 def build_user_profile_response(profile: UserProfile):
     latest_weight = (
@@ -70,7 +108,7 @@ class UserProfileService:
         if existing:
             return jsonify({"error": "Profile already exists"}), 400
 
-        # Lấy thông tin từ Auth Service
+        # ---- Lấy thông tin từ Auth Service ----
         try:
             user_info = fetch_user_profile(jwt_token)
         except Exception as e:
@@ -84,8 +122,8 @@ class UserProfileService:
                 date.fromisoformat(user_info["dateOfBirth"])
                 if user_info.get("dateOfBirth") else None
             ),
-            activity_level=payload["activity_level"],  # REQUIRED
-            aim_weight=payload["aim_weight"],  # REQUIRED
+            activity_level=payload["activity_level"],
+            aim_weight=payload["aim_weight"],
             aim_day=(
                 date.fromisoformat(payload["aim_day"])
                 if payload.get("aim_day") else None
@@ -100,7 +138,7 @@ class UserProfileService:
         db.session.add(profile)
         db.session.flush()  # lấy profile.id
 
-        # ---- Weight history (chiều cao / cân nặng) ----
+        # ---- Weight history ----
         height_cm = payload.get("height_cm")
         weight_kg = payload.get("weight_kg")
 
@@ -119,12 +157,15 @@ class UserProfileService:
                 )
             )
 
-        db.session.commit()
+        # ---- Daily log hôm nay ----
+        upsert_today_daily_log(user_id)
 
+        db.session.commit()
 
         return jsonify(
             build_user_profile_response(profile)
         ), 201
+
     # =========================
     # UPDATE PROFILE
     # =========================
@@ -134,7 +175,7 @@ class UserProfileService:
         if not profile:
             return jsonify({"error": "Profile not found"}), 404
 
-
+        # ---- Lấy weight history mới nhất ----
         latest = (
             UserProfileWeightHistory.query
             .filter_by(user_profile_id=profile.id)
@@ -145,18 +186,13 @@ class UserProfileService:
         current_height = latest.height_cm if latest else None
         current_weight = latest.weight_kg if latest else None
 
-
         new_height = payload.get("height_cm")
         new_weight = payload.get("weight_kg")
 
-        height_changed = (
-                new_height is not None and new_height != current_height
-        )
-        weight_changed = (
-                new_weight is not None and new_weight != current_weight
-        )
+        height_changed = new_height is not None and new_height != current_height
+        weight_changed = new_weight is not None and new_weight != current_weight
 
-
+        # ---- Thêm weight history nếu có thay đổi ----
         if height_changed or weight_changed:
             height_cm = new_height if height_changed else current_height
             weight_kg = new_weight if weight_changed else current_weight
@@ -174,7 +210,7 @@ class UserProfileService:
                 )
             )
 
-
+        # ---- Update profile fields ----
         if "gender" in payload:
             profile.gender = payload["gender"]
 
@@ -189,8 +225,9 @@ class UserProfileService:
                 date.fromisoformat(payload["aim_day"])
                 if payload["aim_day"] else None
             )
+
         if "aim_day_end" in payload:
-            profile.aim_day = (
+            profile.aim_day_end = (
                 date.fromisoformat(payload["aim_day_end"])
                 if payload["aim_day_end"] else None
             )
@@ -202,8 +239,11 @@ class UserProfileService:
             profile.date_of_birth = date.fromisoformat(payload["date_of_birth"])
 
         profile.updated_at = datetime.utcnow()
-        db.session.commit()
 
+        # ---- Daily log hôm nay ----
+        upsert_today_daily_log(user_id)
+
+        db.session.commit()
 
         return jsonify(
             build_user_profile_response(profile)
