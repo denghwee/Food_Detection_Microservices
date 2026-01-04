@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 class BaseService(ABC):
     """
-    Interface gốc cho mọi service của hệ thống.
+    Interface gốc cho mọi AI service của hệ thống.
     """
 
     @abstractmethod
