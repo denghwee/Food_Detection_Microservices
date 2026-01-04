@@ -8,6 +8,25 @@ from app.models.user_profile_weight_history import UserProfileWeightHistory
 from app.external.auth_service import fetch_user_profile
 from app.services.daily_log_service import calculate_tdee
 
+def _get_profile_and_latest_weight(user_id: int):
+    profile = UserProfile.query.filter_by(user_id=user_id).first()
+    if not profile:
+        return None, None, "User profile not found"
+
+    if not profile.date_of_birth:
+        return None, None, "Date of birth not set"
+
+    wh = (
+        UserProfileWeightHistory.query
+        .filter_by(user_profile_id=profile.id)
+        .order_by(UserProfileWeightHistory.created_at.desc())
+        .first()
+    )
+
+    if not wh:
+        return None, None, "Weight/height history not found"
+
+    return profile, wh, None
 
 def upsert_today_daily_log(user_id: int):
     """
@@ -290,33 +309,34 @@ class UserProfileService:
             ]
         }), 200
 
-    # =========================
-    # AI INPUT
-    # =========================
     @staticmethod
-    def build_ai_input(user_id: int):
-        profile = UserProfile.query.filter_by(user_id=user_id).first()
-        if not profile:
-            return None, "User profile not found"
-
-        if not profile.date_of_birth:
-            return None, "Date of birth not set"
+    def build_ai_profile_input(user_id: int):
+        profile, wh, error = _get_profile_and_latest_weight(user_id)
+        if error:
+            return None, error
 
         today = date.today()
         age = today.year - profile.date_of_birth.year - (
-            (today.month, today.day) <
-            (profile.date_of_birth.month, profile.date_of_birth.day)
+                (today.month, today.day) <
+                (profile.date_of_birth.month, profile.date_of_birth.day)
         )
 
-        wh = (
-            UserProfileWeightHistory.query
-            .filter_by(user_profile_id=profile.id)
-            .order_by(UserProfileWeightHistory.created_at.desc())
-            .first()
-        )
+        return {
+            "age": age,
+            "gender": profile.gender,
+            "height_cm": int(wh.height_cm),
+            "weight_kg": float(wh.weight_kg),
+            "experience_level": ACTIVITY_TO_EXPERIENCE.get(
+                profile.activity_level, "beginner"
+            ),
+            "available_days_per_week": profile.day_of_activities
+        }, None
 
-        if not wh:
-            return None, "Weight/height history not found"
+    @staticmethod
+    def build_ai_goal_input(user_id: int):
+        profile, wh, error = _get_profile_and_latest_weight(user_id)
+        if error:
+            return None, error
 
         log = (
             DailyEnergyLog.query
@@ -324,6 +344,7 @@ class UserProfileService:
             .order_by(DailyEnergyLog.log_date.desc())
             .first()
         )
+
         if profile.aim_weight - wh.weight_kg > 0:
             goal = "gain weight"
         elif profile.aim_weight - wh.weight_kg == 0:
@@ -331,17 +352,9 @@ class UserProfileService:
         else:
             goal = "lose weight"
 
-        calorie_target = log.target_calorie if log else 0
-
         return {
-            "age": age,
             "gender": profile.gender,
-            "height_cm": int(wh.height_cm),
             "weight_kg": float(wh.weight_kg),
-            "experience_level": ACTIVITY_TO_EXPERIENCE.get(profile.activity_level, "beginner"),
             "goal": goal,
-            "available_days_per_week": profile.day_of_activities,
-            "session_duration_minutes": ACTIVITY_TO_SESSION_DURATION.get(profile.activity_level, 60),
-            "injuries": [],
-            "calorie_target": calorie_target
+            "calorie_target": log.target_calorie if log else 0
         }, None

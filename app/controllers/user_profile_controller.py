@@ -65,8 +65,22 @@ def get_ai_profile_input():
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
 
-    data, error = UserProfileService.build_ai_input(user_id)
+    data, error = UserProfileService.build_ai_profile_input(user_id)
     if error:
         return jsonify({"error": error}), 400
 
     return jsonify(data), 200
+
+@user_profile_bp.route("/ai/goal-input", methods=["GET"])
+@jwt_required()
+def get_ai_goal_input():
+    user_id = get_current_user_id()
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data, error = UserProfileService.build_ai_goal_input(user_id)
+    if error:
+        return jsonify({"error": error}), 400
+
+    return jsonify(data), 200
+
