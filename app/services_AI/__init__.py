@@ -1,0 +1,1 @@
+from .food_detection_services import FoodDetectionService

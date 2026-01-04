@@ -5,7 +5,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 
 from app.config import Config
-from app.services.food_detection_services import FoodDetectionService
+from app.services_AI.food_detection_services import FoodDetectionService
 from app.services.nutrition_service import NutritionService
 
 

@@ -6,7 +6,8 @@ load_dotenv()
 
 class Config:
     # ======= AI MODEL CONFIG =======
-    FOOD_DETECTION_PATH = "app/models_AI/food_detection.pt"
+    FOOD_DETECTION_ONNX_PATH = "app/models_AI/food_detection.onnx"
+    FOOD_DETECTION_PT_PATH = "app/models_AI/food_detection.pt"
     # JWT
     SECRET_KEY = "kfhsk3jh2k3hk2h3k2h3k2h3h23jh23j423423"
     JWT_SECRET_KEY = "Some_super_secure_and_long_base64_encoded_secret_key_for_JSWT123"

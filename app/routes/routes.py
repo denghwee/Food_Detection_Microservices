@@ -8,7 +8,7 @@ from PIL import Image
 from flask_jwt_extended import jwt_required
 
 from ..config import Config
-from ..services import FoodDetectionService
+from ..services_AI import FoodDetectionService
 from ..utils import apply_nms, deduplicate_by_label, draw_boxes, image_to_base64, calculate_total_nutrition
 from ..utils.cloudinary_helper import upload_image_to_cloudinary
 
