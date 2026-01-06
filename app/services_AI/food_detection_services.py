@@ -64,8 +64,13 @@ class FoodDetectionService:
             cls_id = int(det[5])
             x1, y1, x2, y2 = det[:4]
 
+            cls_name = self.class_names[cls_id]
+
+            if cls_name == "Mì":
+                continue
+
             detections.append({
-                "class": self.class_names[cls_id],
+                "class": cls_name,
                 "confidence": conf,
                 "bbox": [
                     float(x1 * scale_x),
@@ -90,7 +95,18 @@ class FoodDetectionService:
     def post_process(self, foods):
         foods = apply_nms(foods, iou_threshold=0.5)
         foods = deduplicate_by_label(foods)
-        return foods
+
+        filtered = []
+        for f in foods:
+            cls = f.get("detected_class")
+            conf = float(f.get("confidence", 0))
+
+            if cls == "Mì":
+                continue
+
+            filtered.append(f)
+
+        return filtered
 
     def upload_annotated_image(self, image, foods):
         image_with_boxes = draw_boxes(image.copy(), foods)
@@ -102,7 +118,8 @@ class FoodDetectionService:
         )
 
     def upload_original_image(self, image):
+        base64_img = image_to_base64(image)
         return upload_base64_to_cloudinary(
-            image,
+            base64_img,
             folder="food-detection/original"
         )

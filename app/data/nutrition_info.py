@@ -456,17 +456,6 @@ FOOD_NUTRITION_DB = [
         }
     },
     {
-        "name": "Mì",
-        "description": "Egg noodles",
-        "serving_type": "per 100g",
-        "nutrition": {
-            "Calories": 138,
-            "Fat": 2,
-            "Carbs": 25,
-            "Protein": 5
-        }
-    },
-    {
         "name": "Mực",
         "description": "Squid",
         "serving_type": "per 100g",
