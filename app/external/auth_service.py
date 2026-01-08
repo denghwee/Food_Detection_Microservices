@@ -4,7 +4,7 @@ AUTH_SERVICE_URL = "http://localhost:8080/api/users/profile"
 
 def fetch_user_profile(jwt_token: str):
     headers = {
-        "Authorization": f"Bearer {jwt_token}"
+        "Authorization": jwt_token
     }
 
     response = requests.get(

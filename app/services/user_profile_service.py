@@ -131,6 +131,7 @@ class UserProfileService:
         try:
             user_info = fetch_user_profile(jwt_token)
         except Exception as e:
+            print("AUTH SERVICE ERROR:", e)
             return jsonify({"error": str(e)}), 502
 
         # ---- Tạo UserProfile ----
@@ -189,10 +190,18 @@ class UserProfileService:
     # UPDATE PROFILE
     # =========================
     @staticmethod
-    def update_user_profile(user_id: int, payload: dict):
+    def update_user_profile(user_id: int, payload: dict, jwt_token: str):
         profile = UserProfile.query.filter_by(user_id=user_id).first()
+
+        # =========================
+        # Nếu CHƯA CÓ profile → tạo mới
+        # =========================
         if not profile:
-            return jsonify({"error": "Profile not found"}), 404
+            return UserProfileService.create_user_profile(
+                user_id=user_id,
+                payload=payload,
+                jwt_token=jwt_token
+            )
 
         # ---- Lấy weight history mới nhất ----
         latest = (

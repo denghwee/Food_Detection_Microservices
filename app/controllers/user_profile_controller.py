@@ -45,7 +45,14 @@ def update_user_profile():
         return jsonify({"error": "Unauthorized"}), 401
 
     payload = request.get_json()
-    return UserProfileService.update_user_profile(user_id, payload)
+
+    jwt_token = request.headers.get("Authorization")
+
+    return UserProfileService.update_user_profile(
+        user_id=user_id,
+        payload=payload,
+        jwt_token=jwt_token
+    )
 
 
 @user_profile_bp.route("/weight-history", methods=["GET"])
