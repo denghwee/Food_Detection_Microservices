@@ -1,310 +1,260 @@
-1. Giới thiệu
+# Food Detection Microservices
 
-Dự án Calorie Tracker nhằm hỗ trợ người dùng theo dõi lượng năng lượng nạp vào và tiêu hao hàng ngày, dựa trên các kiến thức y khoa chuẩn về chuyển hóa cơ bản (BMR), tổng năng lượng tiêu hao hàng ngày (TDEE), và mục tiêu năng lượng dựa trên chế độ ăn và hoạt động thể chất.
+Dự án microservice phát hiện thức ăn và theo dõi calo sử dụng AI, hỗ trợ người dùng theo dõi lượng năng lượng nạp vào và tiêu hao hàng ngày dựa trên các kiến thức y khoa chuẩn về chuyển hóa cơ bản (BMR), tổng năng lượng tiêu hao hàng ngày (TDEE), và mục tiêu năng lượng dựa trên chế độ ăn và hoạt động thể chất.
 
-Các kiến thức này được tích hợp trực tiếp vào hệ thống qua các model, service và API, giúp người dùng nhận được dữ liệu cá nhân hóa về năng lượng, từ đó hỗ trợ quyết định chế độ ăn uống và hoạt động thể chất hợp lý.
+## 🚀 Tính năng chính
 
-2. Các kiến thức y khoa áp dụng
-2.1. Basal Metabolic Rate (BMR)
+### 1. Phát hiện thức ăn bằng AI
+- Phát hiện và nhận diện hơn 60 loại món ăn Việt Nam từ hình ảnh
+- Sử dụng mô hình ONNX (YOLO) để phát hiện đối tượng
+- Phân tích dinh dưỡng tự động dựa trên món ăn được phát hiện
+- Upload và lưu trữ hình ảnh trên Cloudinary
 
-Định nghĩa:
-BMR là lượng năng lượng cơ thể cần để duy trì các chức năng cơ bản khi nghỉ ngơi (hô hấp, tuần hoàn, trao đổi chất, duy trì nhiệt độ cơ thể).
+### 2. Theo dõi Calorie
+- Quản lý bản ghi thức ăn (thêm, sửa, xóa, xem)
+- Tính toán calo nạp vào từ các món ăn
+- Theo dõi lịch sử ăn uống theo ngày
 
-Công thức tính:
-Trong dự án, sử dụng Mifflin-St Jeor Equation, một công thức được công nhận trong y khoa hiện đại:
+### 3. Daily Energy Log
+- Tự động tạo log năng lượng hàng ngày (chạy lúc 00:00)
+- Tính toán BMR (Basal Metabolic Rate) theo công thức Mifflin-St Jeor
+- Tính toán TDEE (Total Daily Energy Expenditure) dựa trên mức độ hoạt động
+- Theo dõi calo nạp vào (calorie in) và tiêu hao (calorie out)
+- Tính toán net calorie và mục tiêu calo dựa trên mục tiêu của người dùng
 
-Nam:
+### 4. User Profile
+- Quản lý thông tin cá nhân (chiều cao, cân nặng, giới tính, ngày sinh)
+- Lịch sử cân nặng theo thời gian
+- Tích hợp với service xác thực bên ngoài
 
-𝐵
-𝑀
-𝑅
-=
-10
-×
-c
-a
-ˆ
-n nặng (kg)
-+
-6.25
-×
-chi
-e
-ˆ
-ˋ
-u cao (cm)
-−
-5
-×
-tuổi (n
-a
-˘
-m)
-+
-5
-BMR=10×c
-a
-ˆ
-n nặng (kg)+6.25×chi
-e
-ˆ
-ˋ
-u cao (cm)−5×tuổi (n
-a
-˘
-m)+5
+## 🛠️ Công nghệ sử dụng
 
-Nữ:
+- **Backend Framework**: Flask 3.1.2
+- **Database**: MySQL (SQLAlchemy ORM)
+- **AI/ML**: 
+  - ONNX Runtime (food detection)
+  - PyTorch, Ultralytics YOLO
+- **Authentication**: Flask-JWT-Extended
+- **Image Storage**: Cloudinary
+- **Scheduler**: APScheduler (Flask-APScheduler)
+- **Database Migration**: Flask-Migrate (Alembic)
+- **Containerization**: Docker
 
-𝐵
-𝑀
-𝑅
-=
-10
-×
-c
-a
-ˆ
-n nặng (kg)
-+
-6.25
-×
-chi
-e
-ˆ
-ˋ
-u cao (cm)
-−
-5
-×
-tuổi (n
-a
-˘
-m)
-−
-161
-BMR=10×c
-a
-ˆ
-n nặng (kg)+6.25×chi
-e
-ˆ
-ˋ
-u cao (cm)−5×tuổi (n
-a
-˘
-m)−161
+## 📋 Yêu cầu hệ thống
 
-Triển khai trong dự án:
+- Python 3.11+
+- MySQL Database
+- Cloudinary account (cho lưu trữ hình ảnh)
+- JWT token từ auth service
 
-Dữ liệu chiều cao, cân nặng và ngày sinh lấy từ bảng UserProfile và UserProfileWeightHistory.
+## 🔧 Cài đặt
 
-Nếu người dùng chưa có lịch sử cân nặng, BMR trả về 0 để tránh lỗi tính toán.
+### 1. Clone repository
 
-BMR được lưu trong trường base_calorie_out của DailyEnergyLog.
+```bash
+git clone <repository-url>
+cd Food_Detection_Microservices
+```
 
-Ý nghĩa y khoa: BMR là nền tảng để tính năng lượng cần thiết, giúp cá nhân hóa kế hoạch dinh dưỡng và tránh nguy cơ dư thừa hoặc thiếu năng lượng.
+### 2. Cài đặt dependencies
 
-2.2. Total Daily Energy Expenditure (TDEE)
+```bash
+pip install -r requirements.txt
+```
 
-Định nghĩa:
+### 3. Cấu hình môi trường
+
+Tạo file `.env` hoặc cập nhật các biến môi trường trong `app/config.py`:
+
+```python
+# Database
+SQLALCHEMY_DATABASE_URI = "mysql+pymysql://user:password@host:port/database"
+
+# Cloudinary
+CLOUDINARY_CLOUD_NAME = "your_cloud_name"
+CLOUDINARY_API_KEY = "your_api_key"
+CLOUDINARY_API_SECRET = "your_api_secret"
+
+# JWT
+JWT_SECRET_KEY = "your_secret_key"
+```
+
+### 4. Chạy migrations
+
+```bash
+flask db upgrade
+```
+
+### 5. Chạy ứng dụng
+
+**Development:**
+```bash
+python run.py
+```
+
+**Docker:**
+```bash
+docker build -t food-detection-microservice .
+docker run -p 5002:5002 food-detection-microservice
+```
+
+Ứng dụng sẽ chạy tại `http://localhost:5002`
+
+## 📡 API Endpoints
+
+### Food Detection
+
+- `GET /api/v2/detect` - Health check
+- `POST /api/v2/detect` - Phát hiện thức ăn từ hình ảnh
+  - **Headers**: `Authorization: Bearer <token>`
+  - **Body**: `multipart/form-data` với field `image`
+  - **Response**: Detection results, nutrition analysis, annotated image URL
+
+### Calorie Management
+
+- `GET /api/v2/calories/food-records?log_date=YYYY-MM-DD` - Lấy danh sách bản ghi thức ăn
+- `POST /api/v2/calories/food-records` - Thêm bản ghi thức ăn mới
+- `PUT /api/v2/calories/food-records/<record_id>` - Cập nhật bản ghi thức ăn
+- `DELETE /api/v2/calories/food-records/<record_id>` - Xóa bản ghi thức ăn
+
+### Daily Energy Log
+
+- `GET /api/v2/daily-logs?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD` - Lấy log năng lượng theo khoảng thời gian
+- `POST /api/v2/daily-logs/generate` - Tạo log năng lượng thủ công (test)
+- `POST /api/v2/daily-logs/steps` - Cập nhật số bước chân
+
+### User Profile
+
+- `GET /api/v2/user-profile` - Lấy thông tin profile
+- `POST /api/v2/user-profile` - Tạo profile mới
+- `PUT /api/v2/user-profile` - Cập nhật profile
+- `GET /api/v2/user-profile/weight-history` - Lấy lịch sử cân nặng
+- `GET /api/v2/user-profile/ai/profile-input` - Lấy dữ liệu input cho AI profile
+- `GET /api/v2/user-profile/ai/goal-input` - Lấy dữ liệu input cho AI goal
+
+## 🧠 Kiến thức y khoa áp dụng
+
+### 1. Basal Metabolic Rate (BMR)
+
+BMR là lượng năng lượng cơ thể cần để duy trì các chức năng cơ bản khi nghỉ ngơi.
+
+**Công thức Mifflin-St Jeor:**
+
+- **Nam**: `BMR = 10 × cân nặng (kg) + 6.25 × chiều cao (cm) - 5 × tuổi (năm) + 5`
+- **Nữ**: `BMR = 10 × cân nặng (kg) + 6.25 × chiều cao (cm) - 5 × tuổi (năm) - 161`
+
+BMR được lưu trong trường `base_calorie_out` của `DailyEnergyLog`.
+
+### 2. Total Daily Energy Expenditure (TDEE)
+
 TDEE là tổng năng lượng tiêu hao trong ngày, bao gồm:
+- BMR – năng lượng cơ bản
+- Activity Calories – năng lượng từ hoạt động thể chất
 
-BMR – năng lượng cơ bản để duy trì cơ thể lúc nghỉ ngơi.
+**Công thức:** `TDEE = BMR × hệ số hoạt động`
 
-Thermic Effect of Food (TEF) – năng lượng tiêu hao để tiêu hóa và hấp thụ thực phẩm (tạm tính trong tổng calorie in).
+**Hệ số hoạt động:**
+- Sedentary (ít vận động): 1.2
+- Lightly active (vận động nhẹ): 1.375
+- Moderately active (vận động vừa): 1.55
+- Very active (vận động nhiều): 1.725
 
-Activity Calories – năng lượng tiêu hao do hoạt động thể chất (hoạt động thể thao, sinh hoạt hàng ngày).
+### 3. Goal-based Calorie Target
 
-Triển khai trong dự án:
+Mục tiêu năng lượng dựa trên mục tiêu cân nặng:
+- **Lose weight**: TDEE - 500 kcal/ngày (~0.5 kg/tuần)
+- **Maintain**: TDEE
+- **Gain weight**: TDEE + 300-500 kcal/ngày
 
-Trường tdee trong DailyEnergyLog lưu giá trị tổng năng lượng tiêu hao, tính toán theo:
+### 4. Net Calorie
 
-𝑇
-𝐷
-𝐸
-𝐸
-=
-𝐵
-𝑀
-𝑅
-×
-hệ s
-o
-ˆ
-ˊ
- hoạt động
-TDEE=BMR×hệ s
-o
-ˆ
-ˊ
- hoạt động
+Cân bằng năng lượng: `Net Calorie = Total Calorie In - Base Calorie Out - Activity Calorie Out`
 
-Hệ số hoạt động được dựa trên ActivityLevelEnum, bao gồm:
+- Net calorie dương → dư năng lượng, có thể tăng cân
+- Net calorie âm → thiếu năng lượng, có thể giảm cân
+- Net calorie ≈ 0 → duy trì cân nặng
 
-Hoạt động	Hệ số
-Sedentary (ít vận động)	1.2
-Lightly active (vận động nhẹ)	1.375
-Moderately active (vận động vừa)	1.55
-Very active (vận động nhiều)	1.725
+## 📊 Cấu trúc Database
 
-Năng lượng tiêu hao từ hoạt động cụ thể được cộng thêm từ bảng Activity vào activity_calorie_out.
+### Các bảng chính
 
-Ý nghĩa y khoa: TDEE phản ánh chính xác nhu cầu năng lượng của cơ thể theo ngày, giúp xác định mức ăn phù hợp để giảm, duy trì hoặc tăng cân.
+| Bảng | Chức năng |
+|------|-----------|
+| `UserProfile` | Thông tin cơ bản người dùng: email, giới tính, ngày sinh, chiều cao |
+| `UserProfileWeightHistory` | Lịch sử cân nặng để tính BMR chính xác |
+| `DailyEnergyLog` | Log năng lượng hàng ngày: calorie in, BMR, TDEE, activity out, target calorie |
+| `FoodRecord` | Bản ghi thức ăn: tên món, calo, số lượng, ngày |
+| `Activity` | Hoạt động thể chất và calo tiêu hao |
 
-2.3. Goal-based Calorie Target
+## 🤖 AI Model
 
-Định nghĩa:
-Mỗi người có mục tiêu năng lượng dựa trên mong muốn về cân nặng:
+- **Model**: YOLO-based food detection model
+- **Format**: ONNX (optimized for inference)
+- **Classes**: 60+ món ăn Việt Nam (Bánh mì, Phở, Bún chả, Cơm, v.v.)
+- **Input Size**: 640x640
+- **Confidence Threshold**: 0.25
 
-Lose weight (giảm cân): giảm ~500 kcal/ngày để giảm ~0.5 kg/tuần.
+## ⏰ Scheduled Jobs
 
-Maintain (duy trì cân nặng): năng lượng nạp = TDEE.
+- **Daily Log Job**: Tự động tạo `DailyEnergyLog` cho tất cả người dùng lúc 00:00 mỗi ngày
 
-Gain weight (tăng cân): tăng ~300–500 kcal/ngày tùy mục tiêu.
+## 📁 Cấu trúc thư mục
 
-Triển khai trong dự án:
+```
+Food_Detection_Microservices/
+├── app/
+│   ├── controllers/          # API controllers
+│   ├── services/              # Business logic
+│   ├── services_AI/          # AI services (food detection)
+│   ├── models/                # Database models
+│   ├── models_AI/             # AI model files (.onnx, .pt)
+│   ├── routes/                # Route definitions
+│   ├── utils/                 # Utility functions
+│   ├── jobs/                  # Scheduled jobs
+│   ├── config.py              # Configuration
+│   └── __init__.py            # App factory
+├── migrations/                # Database migrations
+├── Dockerfile                 # Docker configuration
+├── requirements.txt           # Python dependencies
+└── run.py                     # Application entry point
+```
 
-Trường target_calorie trong DailyEnergyLog lưu giá trị này.
+## 🔐 Authentication
 
-Mục tiêu được tính tự động dựa trên GoalTypeEnum.
+Tất cả API endpoints (trừ health check) yêu cầu JWT token trong header:
 
-Ý nghĩa y khoa: Hỗ trợ lập kế hoạch dinh dưỡng cá nhân hóa, tránh dư thừa hoặc thiếu năng lượng, phù hợp với tiêu chuẩn an toàn giảm cân / tăng cân.
+```
+Authorization: Bearer <your_jwt_token>
+```
 
-2.4. Tracking Calorie In & Out
+Token được lấy từ auth service bên ngoài.
 
-Calorie In (nạp vào):
+## 🐳 Docker
 
-Lấy từ food records, với các thông số: tên món, calorie, số lượng.
+Build và chạy với Docker:
 
-Tính tổng năng lượng nạp vào total_calorie_in.
+```bash
+# Build image
+docker build -t food-detection-microservice .
 
-Sử dụng dữ liệu từ FOOD_NUTRITION_DB để đảm bảo chính xác về dinh dưỡng.
+# Run container
+docker run -p 5002:5002 \
+  -e MICRO_HOST=0.0.0.0 \
+  -e MICRO_PORT=5002 \
+  food-detection-microservice
+```
 
-Calorie Out (tiêu hao):
+## 📝 Notes
 
-Gồm BMR + Activity Calories (activity_calorie_out).
+- Model AI được load vào memory khi service khởi động
+- Hình ảnh được upload lên Cloudinary và trả về URL
+- Daily logs được tạo tự động mỗi ngày lúc 00:00
+- BMR được tính dựa trên cân nặng gần nhất trong lịch sử
 
-Hoạt động thể chất nhập vào từ người dùng hoặc qua detection (ảnh thức ăn/hoạt động).
+## 📄 License
 
-Net Calorie (cân bằng năng lượng):
+[Thêm thông tin license nếu có]
 
-𝑁
-𝑒
-𝑡
-𝐶
-𝑎
-𝑙
-𝑜
-𝑟
-𝑖
-𝑒
-=
-𝑇
-𝑜
-𝑡
-𝑎
-𝑙
-𝐶
-𝑎
-𝑙
-𝑜
-𝑟
-𝑖
-𝑒
-𝐼
-𝑛
-−
-𝐵
-𝑎
-𝑠
-𝑒
-𝐶
-𝑎
-𝑙
-𝑜
-𝑟
-𝑖
-𝑒
-𝑂
-𝑢
-𝑡
-−
-𝐴
-𝑐
-𝑡
-𝑖
-𝑣
-𝑖
-𝑡
-𝑦
-𝐶
-𝑎
-𝑙
-𝑜
-𝑟
-𝑖
-𝑒
-𝑂
-𝑢
-𝑡
-NetCalorie=TotalCalorieIn−BaseCalorieOut−ActivityCalorieOut
+## 👥 Contributors
 
-Ý nghĩa y khoa:
-
-Net calorie dương → dư năng lượng, có thể tăng cân.
-
-Net calorie âm → thiếu năng lượng, có thể giảm cân.
-
-Net calorie ≈ 0 → duy trì cân nặng hiện tại.
-
-2.5. Age, Gender & Historical Weight
-
-Tuổi ảnh hưởng trực tiếp đến BMR (người già BMR thấp hơn).
-
-Giới tính: nam giới thường BMR cao hơn nữ giới cùng cân nặng và chiều cao.
-
-Lịch sử cân nặng: chọn giá trị cân nặng gần nhất để tính BMR chính xác, đặc biệt nếu người dùng thay đổi cân nặng thường xuyên.
-
-2.6. Khuyến nghị y khoa được áp dụng
-
-Sử dụng công thức chuẩn y khoa (Mifflin-St Jeor) thay vì công thức tùy ý.
-
-Tính cá nhân hóa dựa trên giới tính, tuổi, chiều cao, cân nặng.
-
-Cập nhật dữ liệu lịch sử cân nặng để BMR và TDEE chính xác theo thời gian.
-
-Theo dõi Net Calorie hàng ngày để cảnh báo dư/thiếu năng lượng.
-
-Định nghĩa các mức hoạt động thể chất chuẩn theo y học thể thao (sedentary → very active).
-
-Tính toán mục tiêu calo dựa trên GoalTypeEnum, giúp người dùng an toàn giảm/gain cân.
-
-2.7. Lợi ích lâm sàng của dự án
-
-Giúp người dùng kiểm soát cân nặng một cách khoa học.
-
-Dự phòng bệnh lý liên quan đến thừa cân/thiếu cân: béo phì, tiểu đường, loãng xương.
-
-Hỗ trợ chế độ ăn cá nhân hóa, tránh suy dinh dưỡng hoặc ăn quá nhiều.
-
-Tích hợp hoạt động thể chất, giúp theo dõi calo tiêu hao thực tế.
-
-3. Các bảng dữ liệu liên quan
-Table	Chức năng
-UserProfile	Thông tin cơ bản người dùng: email, giới tính, ngày sinh
-UserProfileWeightHistory	Lịch sử cân nặng để tính BMR chính xác
-DailyEnergyLog	Lưu log năng lượng hàng ngày: calorie in, BMR, TDEE, activity out, target calorie
-FoodRecord	Lưu thông tin món ăn: tên, calo, số lượng
-Activity	Lưu hoạt động thể chất và calo tiêu hao
-4. Tóm tắt
-
-Dự án Calorie Tracker là sự kết hợp giữa:
-
-Kiến thức y khoa về chuyển hóa năng lượng.
-
-Công nghệ theo dõi dữ liệu cá nhân (Flask + SQLAlchemy + JWT).
-
-Công thức tính BMR/TDEE/Net Calorie chuẩn xác.
-
-Mục tiêu cuối cùng là giúp người dùng lập kế hoạch ăn uống và vận động hợp lý, dựa trên cơ sở y khoa, an toàn và cá nhân hóa.
+[Thêm thông tin contributors nếu có]
